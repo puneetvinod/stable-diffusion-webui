@@ -378,7 +378,20 @@ def prepare_environment():
     print(f"Commit hash: {commit}")
 
     if args.reinstall_torch or not is_installed("torch") or not is_installed("torchvision"):
-        run(f'"{python}" -m {torch_command}', "Installing torch and torchvision", "Couldn't install torch", live=True)
+        try:
+            run(f'"{python}" -m {torch_command}', "Installing torch and torchvision", "Couldn't install torch", live=True)
+        except RuntimeError as e:
+            errstr = str(e)
+            print(errstr)
+            # If the pinned torch version is not available on the selected index, try a looser fallback
+            if ("No matching distribution found for torch" in errstr) or ("Could not find a version that satisfies the requirement torch" in errstr):
+                print("Pinned torch version not found on the selected index. Attempting fallback install of latest torch + torchvision...")
+                try:
+                    run(f'"{python}" -m pip install torch torchvision --extra-index-url {torch_index_url}', "Installing torch and torchvision (fallback)", "Couldn't install torch (fallback)", live=True)
+                except RuntimeError:
+                    raise
+            else:
+                raise
         startup_timer.record("install torch")
 
     if args.use_ipex:

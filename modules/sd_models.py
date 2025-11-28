@@ -411,7 +411,7 @@ def load_model_weights(model, checkpoint_info: CheckpointInfo, state_dict, timer
     sd_model_hash = checkpoint_info.calculate_shorthash()
     timer.record("calculate hash")
 
-    if devices.fp8:
+    if devices.fp8 and torch.cuda.is_available():
         # prevent model to load state dict in fp8
         model.half()
 
@@ -462,7 +462,7 @@ def load_model_weights(model, checkpoint_info: CheckpointInfo, state_dict, timer
         model.to(memory_format=torch.channels_last)
         timer.record("apply channels_last")
 
-    if shared.cmd_opts.no_half:
+    if shared.cmd_opts.no_half or not torch.cuda.is_available():
         model.float()
         model.alphas_cumprod_original = model.alphas_cumprod
         devices.dtype_unet = torch.float32

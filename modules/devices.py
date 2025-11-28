@@ -26,6 +26,9 @@ def has_mps() -> bool:
 def cuda_no_autocast(device_id=None) -> bool:
     if device_id is None:
         device_id = get_cuda_device_id()
+    # If CUDA is not available, return False (no need to disable autocast)
+    if not torch.cuda.is_available():
+        return False
     return (
         torch.cuda.get_device_capability(device_id) == (7, 5)
         and torch.cuda.get_device_name(device_id).startswith("NVIDIA GeForce GTX 16")
@@ -33,11 +36,15 @@ def cuda_no_autocast(device_id=None) -> bool:
 
 
 def get_cuda_device_id():
-    return (
+    device_id = (
         int(shared.cmd_opts.device_id)
         if shared.cmd_opts.device_id is not None and shared.cmd_opts.device_id.isdigit()
         else 0
-    ) or torch.cuda.current_device()
+    )
+    if device_id:
+        return device_id
+    # Only call torch.cuda.current_device() if CUDA is actually available
+    return torch.cuda.current_device() if torch.cuda.is_available() else 0
 
 
 def get_cuda_device_string():
@@ -127,6 +134,13 @@ dtype_vae: torch.dtype = torch.float16
 dtype_unet: torch.dtype = torch.float16
 dtype_inference: torch.dtype = torch.float16
 unet_needs_upcast = False
+
+# Force float32 on CPU since half-precision (float16) is not supported on CPU
+if not torch.cuda.is_available():
+    dtype = torch.float32
+    dtype_vae = torch.float32
+    dtype_unet = torch.float32
+    dtype_inference = torch.float32
 
 
 def cond_cast_unet(input):
@@ -271,13 +285,15 @@ def first_time_calculation():
     just do any calculation with pytorch layers - the first time this is done it allocates about 700MB of memory and
     spends about 2.7 seconds doing that, at least with NVidia.
     """
+    # Use float32 on CPU since float16 operations are not supported on CPU
+    calc_dtype = torch.float32 if device.type == 'cpu' else dtype
 
-    x = torch.zeros((1, 1)).to(device, dtype)
-    linear = torch.nn.Linear(1, 1).to(device, dtype)
+    x = torch.zeros((1, 1)).to(device, calc_dtype)
+    linear = torch.nn.Linear(1, 1).to(device, calc_dtype)
     linear(x)
 
-    x = torch.zeros((1, 1, 3, 3)).to(device, dtype)
-    conv2d = torch.nn.Conv2d(1, 1, (3, 3)).to(device, dtype)
+    x = torch.zeros((1, 1, 3, 3)).to(device, calc_dtype)
+    conv2d = torch.nn.Conv2d(1, 1, (3, 3)).to(device, calc_dtype)
     conv2d(x)
 
 

@@ -15,7 +15,21 @@ mkdir tmp 2>NUL
 
 %PYTHON% -c "" >tmp/stdout.txt 2>tmp/stderr.txt
 if %ERRORLEVEL% == 0 goto :check_pip
-echo Couldn't launch python
+
+rem Try common Windows/Unix fallbacks if plain "python" isn't available
+py -3 -c "" >tmp/stdout.txt 2>tmp/stderr.txt
+if %ERRORLEVEL% == 0 (
+    set PYTHON=py -3
+    goto :check_pip
+)
+
+python3 -c "" >tmp/stdout.txt 2>tmp/stderr.txt
+if %ERRORLEVEL% == 0 (
+    set PYTHON=python3
+    goto :check_pip
+)
+
+echo Couldn't launch python. Please install Python 3.8 - 3.11 and add it to PATH, or set the `PYTHON` variable in `webui-user.bat` to the full Python executable path.
 goto :show_stdout_stderr
 
 :check_pip
