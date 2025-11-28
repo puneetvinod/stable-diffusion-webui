@@ -594,6 +594,22 @@ def network_Conv2d_forward(self, input):
     if shared.opts.lora_functional:
         return network_forward(self, input, originals.Conv2d_forward)
 
+    # Ensure Conv2d weights/bias are float32 on CPU to avoid "slow_conv2d_cpu" errors
+    if not torch.cuda.is_available():
+        try:
+            if getattr(self, 'weight', None) is not None and self.weight.dtype == torch.float16:
+                self.weight.data = self.weight.data.float()
+            if getattr(self, 'bias', None) is not None and getattr(self, 'bias').dtype == torch.float16:
+                self.bias.data = self.bias.data.float()
+
+            # Also convert any fp16 backups to float32 to keep consistency
+            if getattr(self, 'fp16_weight', None) is not None and self.fp16_weight.dtype == torch.float16:
+                self.fp16_weight = self.fp16_weight.float()
+            if getattr(self, 'fp16_bias', None) is not None and self.fp16_bias.dtype == torch.float16:
+                self.fp16_bias = self.fp16_bias.float()
+        except Exception as e:
+            logging.debug(f"Lora: failed to cast Conv2d params to float on CPU: {e}")
+
     network_apply_weights(self)
 
     return originals.Conv2d_forward(self, input)
