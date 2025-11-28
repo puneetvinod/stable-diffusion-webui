@@ -517,7 +517,9 @@ def load_model_weights(model, checkpoint_info: CheckpointInfo, state_dict, timer
 
     devices.unet_needs_upcast = shared.cmd_opts.upcast_sampling and devices.dtype == torch.float16 and devices.dtype_unet == torch.float16
 
-    model.first_stage_model.to(devices.dtype_vae)
+    # Ensure VAE is in float32 on CPU since float16 ops are not supported
+    vae_dtype = torch.float32 if not torch.cuda.is_available() else devices.dtype_vae
+    model.first_stage_model.to(vae_dtype)
     timer.record("apply dtype to VAE")
 
     # clean up cache if limit is reached
